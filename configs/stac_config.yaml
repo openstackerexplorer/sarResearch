@@ -1,0 +1,10 @@
+stac:
+  catalog_url: "https://api.capellaspace.com/stac"
+  collection: "capella-open-data"
+  product_type: "SLC"
+  search_constraints:
+    max_incidence_diff: 5.0
+    delta_graze_deg: 2.0
+downloads:
+  parallel_threads: 4
+  output_dir: "data/raw"

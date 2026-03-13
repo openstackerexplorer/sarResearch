@@ -1,0 +1,71 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*.so
+
+# C extensions
+*.pyd
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.eggs/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.env/
+sarenv/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# VS Code settings
+.vscode/
+
+# PyCharm settings
+.idea/
+
+# macOS files
+.DS_Store
+
+# Windows files
+Thumbs.db
+
+# Logs
+*.log
+
+# Test results
+*.pytest_cache/
+.cache/
+
+# Temporary files
+*.tmp
+*.swp
+
+# Git files
+*.orig
+
+# Ignore data files
+*.csv
+*.tsv
+*.dat
+Plandocument.md
+
+# Ignore images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+
+# Ignore model files
+*.h5
+*.pt
+*.ckpt
+
+# Ignore notebooks
+*.ipynb
