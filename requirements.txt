@@ -16,3 +16,6 @@ boto3
 aiohttp
 osmnx
 matplotlib
+python-dotenv 
+langchain-openai 
+langchain-google-genai

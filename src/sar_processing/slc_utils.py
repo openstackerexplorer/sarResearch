@@ -1,7 +1,7 @@
 import numpy as np
 import rasterio
 from typing import List, Tuple
-
+import json
 class SLCUtils:
     """
     Utilities for handling Single Look Complex (SLC) SAR data.
@@ -28,6 +28,39 @@ class SLCUtils:
                 return src.read(1)
             else:
                 raise ValueError(f"Unexpected number of bands in {filepath}: {src.count}")
+            
+    def load_and_calibrate_slc(self, tif_path: str, json_path: str) -> np.ndarray:
+        """
+        Loads a Capella SLC TIFF, applies the scale factor from the metadata JSON,
+        and returns a calibrated complex numpy array ready for InSAR processing.
+        """
+        # 1. Parse the Capella Metadata JSON
+        with open(json_path, 'r') as f:
+            meta = json.load(f)
+            
+        # Extract the critical scale factor
+        scale_factor = meta['collect']['image']['scale_factor']
+        
+        # 2. Read the raw CInt16 TIFF using the existing method
+        complex_array = self.read_complex_data(tif_path)
+        
+        # 3. Apply the Capella Scale Factor to calibrate the data
+        calibrated_slc = complex_array * scale_factor
+        
+        return calibrated_slc
+
+    def get_rpc_metadata(self, json_path: str) -> dict:
+        """
+        Extracts the imaging geometry coefficients (RPCs/State Vectors) needed to 
+        project OSM Latitude/Longitude polygons into the SAR Slant-Range pixel grid.
+        """
+        with open(json_path, 'r') as f:
+            meta = json.load(f)
+            
+        # Extract the geometry block
+        geometry_data = meta['collect']['image'].get('image_geometry', {})
+        
+        return geometry_data
 
     def coregister_stack(self, reference_slc: np.ndarray, 
                          secondary_slcs: List[np.ndarray]) -> List[np.ndarray]:
@@ -64,9 +97,18 @@ class SLCUtils:
         # Complex conjugate multiplication
         # ifgram = slc1 * slc2*
         return slc_1 * np.conj(slc_2)
+    
+
+# --- Module-Level Wrappers ---
 
 def read_complex_data(filepath: str) -> np.ndarray:
     return SLCUtils().read_complex_data(filepath)
+
+def load_and_calibrate_slc(tif_path: str, json_path: str) -> np.ndarray:
+    return SLCUtils().load_and_calibrate_slc(tif_path, json_path)
+
+def get_rpc_metadata(json_path: str) -> dict:
+    return SLCUtils().get_rpc_metadata(json_path)
 
 def coregister_stack(reference_slc: np.ndarray, secondary_slcs: List[np.ndarray]) -> List[np.ndarray]:
     return SLCUtils().coregister_stack(reference_slc, secondary_slcs)

@@ -25,12 +25,17 @@ class OSMIntegration:
                 "building": ["industrial", "warehouse"],
                 "industrial": True
             }
+
+        # OSMnx 2.0+ requires a single bbox tuple: (left, bottom, right, top)
+        # Convert the incoming list from LangGraph state into a tuple
+
+        bbox_tuple = tuple(bbox)
         
         # osmnx uses [north, south, east, west] or (north, south, east, west)
         # BBOX format in STAC is [minx, miny, maxx, maxy] (west, south, east, north)
-        west, south, east, north = bbox
+        # west, south, east, north = bbox
         
-        gdf = ox.features_from_bbox(north, south, east, west, tags=tags)
+        gdf = ox.features_from_bbox(bbox_tuple, tags=tags)
         
         # Ensure we only have polygons or multipolygons
         gdf = gdf[gdf.geometry.type.isin(['Polygon', 'MultiPolygon'])]

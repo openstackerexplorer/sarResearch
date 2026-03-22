@@ -19,6 +19,7 @@ ENV/
 .venv/
 .env/
 sarenv/
+.env
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints
@@ -53,15 +54,19 @@ Thumbs.db
 *.csv
 *.tsv
 *.dat
+*.json
 Plandocument.md
-
+data/raw/
+notebook/data/raw/
 # Ignore images
 *.png
 *.jpg
 *.jpeg
 *.gif
 *.bmp
-
+*.tiff
+*.tif
+cache/*.json
 # Ignore model files
 *.h5
 *.pt
