@@ -1,59 +1,66 @@
 # Agentic SAR Infrastructure Monitoring System
 
-A modular Python framework for monitoring the structural integrity of heavy infrastructure using Synthetic Aperture Radar (SAR) data, powered by LangGraph agentic orchestration.
+A modular Python framework for monitoring the structural integrity of heavy infrastructure using Synthetic Aperture Radar (SAR) data, powered by LangGraph agentic orchestration. 
+
+This project simulates a fully automated pipeline capable of retrieving SAR data via STAC, mapping real-world infrastructure properties using OpenStreetMap, analyzing phase shifts via ConvLSTM, and leveraging Large Language Models (LLMs) to issue domain-expert risk assessments.
 
 ## Features
 
-- **Automated STAC Ingestion**: Efficiently query and retrieve SLC data from SAR catalogs.
-- **OSM Integration**: Automatically isolate infrastructure (power plants, substations) for targeted analysis.
-- **Physics-Aware SAR Processing**: Handles complex phase data for interferometric analysis.
-- **SAR Foundation Model**: Extracts robust spatial features using pre-trained convolutional encoders.
-- **Temporal Anomaly Detection**: Utilizes Convolutional LSTM (ConvLSTM) to detect structural shifts over time.
-- **Agentic Orchestration**: Uses LangGraph to manage the pipeline, incorporating expert assessment and automated reporting.
+- **Automated STAC Ingestion**: Efficiently queries and downloads exact SLC temporal stacks from AWS S3 (Capella Space catalogs) utilizing `pystac` and `requests`. Validates items and avoids redundant downloads.
+- **Infrastructure Context via OSMnx**: Automatically connects to OpenStreetMap to fetch geographic building footprints within a bounding box, specifically filtering for heavy infrastructure (e.g., combustion power plants, industrial warehouses).
+- **Core SAR Physics Pipeline**: Implements utilities to read complex SAR arrays (`rasterio`) and parse essential scale factors and Rational Polynomial Coefficients (RPCs) from Capella metadata. *(Note: Coregistration, projection to slant range, and interferogram generation are architectured but utilize mocked stubs)*.
+- **Spatial-Temporal Neural Network (ConvLSTM)**: Contains a PyTorch-based Convolutional LSTM `SARAnomalyDetector`. The network is designed to process sequential complex SAR data chunks over time to isolate anomalous structural phase shifts on specific infrastructure pixels.
+- **LLM Assessment Node**: Employs LangChain and OpenAI `gpt-4o` (or Gemini) functioning as a Senior Civil Engineer expert. Translates raw ConvLSTM anomaly millimeters into actionable risk warnings dynamically based on target asset types (e.g., higher mechanical tolerance for Solar arrays vs zero tolerance for Combustion Plants).
+- **Agentic Orchestration**: Complete state-driven lifecycle using LangGraph (`InfrastructureState`). Includes conditional edge routing that gracefully handles pipeline/network errors, bypasses dead processing paths, and formats resilient final reports.
 
 ## Project Structure
 
 ```text
 sar_infra_monitor/
-├── configs/                    # YAML configurations and agent prompts
-├── data/                       # Local data storage (raw, masks, processed)
+├── configs/                    # YAML configurations (e.g. stac_config.yaml)
+├── data/                       # Local data storage (raw TIFs, JSON, geojson footprints) 
 ├── src/
-│   ├── data_pipeline/         # Data ingestion (STAC, OSM)
-│   ├── sar_processing/        # Radar physics and geometry
-│   ├── modeling/              # ML Models (Encoder, ConvLSTM)
-│   └── agents/                # LangGraph state and orchestration
-├── requirements.txt           # Dependency list
-└── main.py                    # Entry point
+│   ├── data_pipeline/          # stac_client.py (STAC ingestion) & osm_integration.py (OSMnx mapping)
+│   ├── sar_processing/         # slc_utils.py (complex math) & geometry.py (stubbed RPC projection)
+│   ├── modeling/               # encoder.py (Conv2d features), temporal_network.py (ConvLSTM in PyTorch)
+│   └── agents/                 # nodes.py (LangChain setups), state.py, graph.py (LangGraph orchestration)
+├── requirements.txt            # Dependency list
+└── main.py                     # Entry point orchestrator
 ```
 
-## Setup
+## Setup & Configuration
 
 1. **Install Dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **Configure API Endpoints**:
-   Update `configs/stac_config.yaml` with your STAC catalog details.
+2. **Configure Environment Variables**:
+   Add a `.env` file at the project root with your API keys to support the LangChain assessment agents:
+   ```env
+   OPENAI_API_KEY=your_key_here
+   # Or for Gemini fallback (update nodes.py selection):
+   # GOOGLE_API_KEY=your_key_here
+   ```
+
+3. **Configure Settings**:
+   Review limits in `configs/stac_config.yaml` to configure specific STAC search constraints and behavior.
 
 ## Usage
 
-Run the main orchestrator:
+Run the main orchestrator to test the workflow (processes a predefined San Jose footprint against Capella Stack 40 data):
 
 ```bash
 python main.py
 ```
 
-## API Documentation
-
-All modules are documented using Python docstrings. Key components include:
-
-- `src.data_pipeline.stac_client.STACClient`: Handles SAR item search and async downloads.
-- `src.sar_processing.slc_utils`: Core math for complex SAR data.
-- `src.modeling.temporal_network.TemporalAnomalyDetector`: Neural network for multi-temporal analysis.
-- `src.agents.graph.build_orchestrator`: Defines the agentic workflow.
+Upon execution, the terminal will trace the LangGraph node states:
+1. Downloading predefined S3 data slices if missing.
+2. Fetching and persisting geographic OSM infrastructure masks.
+3. Applying arrays and masks passing to the PyTorch ConvLSTM inference.
+4. Synthesizing the final execution report using an LLM evaluator.
 
 ## Technical Notes
 
-- **Modularity**: Every component is decoupled, allowing researchers to swap out the foundation model or the SAR coregistration logic without affecting the agentic flow.
-- **Physics-First**: The pipeline maintains complex data integrity until final feature extraction, ensuring no loss of phase information.
+- **AI-Driven Engineering Parsing**: A core differentiator of this system is that it eschews static thresholds. Anomalies flagged by the PyTorch model are mapped to their OSM asset string and evaluated by the LLM node. It uses engineering principles to understand *what* the building operates as, allowing 15mm tolerance for flexible solar arrays but categorizing 5mm shifts as CRITICAL for high-pressure power generation structures.
+- **Design Modularity**: The dictionary state `InfrastructureState` passed through the nodes decouples the ML inferences from the agentic flow. Swapping out the PyTorch foundation model or STAC sources won't impact or break the graph orchestration.
