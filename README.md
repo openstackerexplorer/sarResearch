@@ -67,6 +67,10 @@ Upon execution, the terminal will trace the LangGraph node states:
 3. Applying arrays and masks passing to the PyTorch ConvLSTM inference (with a 5.0 injected phase shift simulating rapid degradation).
 4. Synthesizing the final execution report using an LLM evaluator to parse the structural collapse.
 
+
+## Demo 
+<video src="assets/recording.webm" width="100%" controls autoplay loop muted></video>
+
 ## Technical Notes
 
 - **AI-Driven Engineering Parsing**: A core differentiator of this system is that it eschews static thresholds. Anomalies flagged by the PyTorch model are mapped to their OSM asset string and evaluated by the LLM node. It uses engineering principles to understand *what* the building operates as, allowing 15mm tolerance for flexible solar arrays but categorizing 5mm shifts as CRITICAL for high-pressure power generation structures.
