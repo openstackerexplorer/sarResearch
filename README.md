@@ -69,7 +69,7 @@ Upon execution, the terminal will trace the LangGraph node states:
 
 
 ## Demo 
-<video src="assets/recording.webm" width="100%" controls autoplay loop muted></video>
+[recoding.webm](https://github.com/user-attachments/assets/5d9e46c6-7c63-4f83-9299-04a1f2d555e5)
 
 ## Technical Notes
 
