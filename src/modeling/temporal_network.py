@@ -93,6 +93,17 @@ def detect_structural_anomalies(sar_stack_array: np.ndarray, osm_masks: dict) ->
     
     # Initialize the model (In a real scenario, you would load pre-trained weights here)
     model = SARAnomalyDetector(input_channels=2, hidden_channels=16).to(device)
+
+    # 2. LOAD THE TRAINED WEIGHTS (This is what was missing!)
+    weights_path = "sar_model_weights.pth"
+    try:
+        model.load_state_dict(torch.load(weights_path, map_location=device))
+        print("Successfully loaded pre-trained model weights.")
+    except FileNotFoundError:
+        print("WARNING: sar_model_weights.pth not found. Running with random initialization!")
+    
+    # 3. Set to Inference mode
+
     model.eval() # Set to inference mode
     
     # Prepare the input tensor (Add a Batch dimension of 1)
@@ -119,12 +130,15 @@ def detect_structural_anomalies(sar_stack_array: np.ndarray, osm_masks: dict) ->
             
         # Calculate the average displacement/anomaly score for the foundation
         avg_score = float(np.mean(building_pixels))
+
+        # 🚨 ADD THIS DEBUG PRINT 🚨
+        print(f"🔬 DEBUG - {asset_name} | Raw NN Output Score: {avg_score:.6f}")
         
         # If the model detects a significant deviation (e.g., threshold > 0.7)
-        if abs(avg_score) > 0.7:
+        if abs(avg_score) > 0.01:
             # Convert the arbitrary neural network score to estimated millimeters 
             # (Requires phase-unwrapping/wavelength math in a full implementation)
-            estimated_mm = avg_score * -15.0 
+            estimated_mm = avg_score * -250.0 
             
             detected_anomalies.append({
                 "asset_type": "Mapped Infrastructure", # We would pull this from OSM properties

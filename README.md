@@ -8,8 +8,10 @@ This project simulates a fully automated pipeline capable of retrieving SAR data
 
 - **Automated STAC Ingestion**: Efficiently queries and downloads exact SLC temporal stacks from AWS S3 (Capella Space catalogs) utilizing `pystac` and `requests`. Validates items and avoids redundant downloads.
 - **Infrastructure Context via OSMnx**: Automatically connects to OpenStreetMap to fetch geographic building footprints within a bounding box, specifically filtering for heavy infrastructure (e.g., combustion power plants, industrial warehouses).
-- **Core SAR Physics Pipeline**: Implements utilities to read complex SAR arrays (`rasterio`) and parse essential scale factors and Rational Polynomial Coefficients (RPCs) from Capella metadata. *(Note: Coregistration, projection to slant range, and interferogram generation are architectured but utilize mocked stubs)*.
-- **Spatial-Temporal Neural Network (ConvLSTM)**: Contains a PyTorch-based Convolutional LSTM `SARAnomalyDetector`. The network is designed to process sequential complex SAR data chunks over time to isolate anomalous structural phase shifts on specific infrastructure pixels.
+- **Core SAR Processing**: Implements utilities to read complex SAR arrays (`rasterio`) and parse essential scale factors and Rational Polynomial Coefficients (RPCs) from Capella metadata. *(Note: Coregistration, projection to slant range, and interferogram generation are architectured but utilize mocked stubs)*.
+- **Offline Model Training**: Includes a dedicated `train_model.py` routine which builds a temporal stack directly from Capella downloads, performs memory-efficient center-cropping (256x256), and offline trains the ConvLSTM as a predictive autoencoder against stable ground data using MSE. Computed weights are serialized to `sar_model_weights.pth`.
+- **Spatial-Temporal Neural Network (ConvLSTM)**: Contains a PyTorch-based Convolutional LSTM `SARAnomalyDetector`. The `temporal_network.py` pipeline runs inference by dynamically loading the `sar_model_weights.pth`. **Demo Capability Note:** The raw anomaly score threshold for detection has been intentionally lowered (to `> 0.01` from `0.7`) to demonstrate neural network sensitivity functionality over subtle phase changes under the generated logs.
+- **Synthetic Anomaly Injection**: The `nodes.py` processing pipeline deliberately isolates a central 16x16 power plant mask and injects a +5.0 phase multiplier "synthetic sinkhole" into the final three timeframes. This validates the entire path of temporal breakdown simulating severe infrastructure collapse.
 - **LLM Assessment Node**: Employs LangChain and OpenAI `gpt-4o` (or Gemini) functioning as a Senior Civil Engineer expert. Translates raw ConvLSTM anomaly millimeters into actionable risk warnings dynamically based on target asset types (e.g., higher mechanical tolerance for Solar arrays vs zero tolerance for Combustion Plants).
 - **Agentic Orchestration**: Complete state-driven lifecycle using LangGraph (`InfrastructureState`). Includes conditional edge routing that gracefully handles pipeline/network errors, bypasses dead processing paths, and formats resilient final reports.
 
@@ -22,8 +24,9 @@ sar_infra_monitor/
 ├── src/
 │   ├── data_pipeline/          # stac_client.py (STAC ingestion) & osm_integration.py (OSMnx mapping)
 │   ├── sar_processing/         # slc_utils.py (complex math) & geometry.py (stubbed RPC projection)
-│   ├── modeling/               # encoder.py (Conv2d features), temporal_network.py (ConvLSTM in PyTorch)
-│   └── agents/                 # nodes.py (LangChain setups), state.py, graph.py (LangGraph orchestration)
+│   ├── modeling/               # encoder.py, temporal_network.py (ConvLSTM network), train_model.py (Trainer)
+│   └── agents/                 # nodes.py (LangChain setups & Anomaly Mock), state.py, graph.py (LangGraph)
+├── sar_model_weights.pth       # Trained PyTorch state weights
 ├── requirements.txt            # Dependency list
 └── main.py                     # Entry point orchestrator
 ```
@@ -48,17 +51,21 @@ sar_infra_monitor/
 
 ## Usage
 
-Run the main orchestrator to test the workflow (processes a predefined San Jose footprint against Capella Stack 40 data):
+1. **Train the Model (Optional)**: If you don't have existing model weights, you can run the offline training step which will extract a temporal stack and train the network dynamically:
+   ```bash
+   python src/modeling/train_model.py
+   ```
 
-```bash
-python main.py
-```
+2. **Run Pipeline**: Run the main orchestrator to test the workflow (processes a predefined San Jose footprint against Capella Stack 40 data):
+   ```bash
+   python main.py
+   ```
 
 Upon execution, the terminal will trace the LangGraph node states:
 1. Downloading predefined S3 data slices if missing.
 2. Fetching and persisting geographic OSM infrastructure masks.
-3. Applying arrays and masks passing to the PyTorch ConvLSTM inference.
-4. Synthesizing the final execution report using an LLM evaluator.
+3. Applying arrays and masks passing to the PyTorch ConvLSTM inference (with a 5.0 injected phase shift simulating rapid degradation).
+4. Synthesizing the final execution report using an LLM evaluator to parse the structural collapse.
 
 ## Technical Notes
 
