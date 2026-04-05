@@ -4,13 +4,16 @@ from src.data_pipeline.stac_client import STACClient
 from src.data_pipeline.osm_integration import fetch_infrastructure_footprints
 from src.sar_processing.slc_utils import SLCUtils
 from src.modeling.encoder import load_sar_foundation_model, extract_spatial_features
-from src.modeling.temporal_network import build_convlstm_model, detect_structural_anomalies
+from src.modeling.temporal_network import detect_structural_anomalies
 from langchain_core.prompts import PromptTemplate
 import glob
 import requests
 import pystac
 from dotenv import load_dotenv
 from datetime import datetime
+import traceback
+import numpy as np
+from typing import List, Dict
 load_dotenv()
 
 
@@ -137,73 +140,79 @@ def data_retrieval_node(state: InfrastructureState) -> InfrastructureState:
     
 #     return state
 
-def processing_node(state: InfrastructureState) -> InfrastructureState:
+def processing_node(state: dict) -> dict: # Assuming InfrastructureState TypedDict
     """
     Ingests raw SLC temporal stacks, masks them using OSM footprints, 
     and runs the spatial-temporal anomaly detection model.
     """
     print("\n--- Executing SAR Processing Node ---")
     
-    # 1. Validation Check
-    if not state.get("stac_items"):
-        state["error_message"] = "Processing failed: No STAC items were downloaded."
+    # 1. Validation Check: Look for downloaded files in state (Not stac_items)
+    downloaded_files = state.get("downloaded_files", [])
+    if not downloaded_files:
+        state["error_message"] = "Processing failed: No files were downloaded from Capella S3."
         return state
 
-    # Locate downloaded data
-    raw_files = glob.glob(os.path.join(state["raw_data_dir"], "*.tif"))
-    if len(raw_files) < 2:
-        state["error_message"] = "Processing failed: Need at least 2 SLC images to form an interferogram."
+    # 2. Isolate and sort TIF and JSON files from the downloaded assets
+    # Sorting ensures the sequence is chronologically aligned for the ConvLSTM
+    tif_files = sorted([f for f in downloaded_files if f.endswith('.tif')])
+    json_files = sorted([f for f in downloaded_files if f.endswith('.json')])
+
+    if len(tif_files) < 2:
+        state["error_message"] = f"Processing failed: Need at least 2 SLC images to form a temporal stack. Found {len(tif_files)}."
         return state
 
-    print(f"Found {len(raw_files)} SAR images for processing.")
+    print(f"Found {len(tif_files)} SAR images ready for processing.")
 
     try:
-        # 2. SAR Physics: Coregistration & Interferometry
-        # (In a real scenario, this calls functions from your src/sar_processing/ module)
-        print("Coregistering temporal stack and computing interferograms...")
-        # interferograms = compute_interferogram_stack(raw_files)
+        # 3. Extract RPC Metadata for Geolocation Mapping
+        # We extract the geometry from the reference (first) image's JSON
+        # rpc_metadata = get_rpc_metadata(json_files[0])
+        rpc_metadata = {} # Placeholder for execution
         
-        # Mocking the output path for the architecture
-        mock_ifg_path = os.path.join(state["raw_data_dir"], "processed_ifg_01.tif")
-        state["interferogram_paths"] = [mock_ifg_path]
+        # 4. SAR Physics: Build the Calibrated Stack
+        print("Calibrating and Coregistering temporal stack using Capella JSON metadata...")
+        # stack_array = build_calibrated_stack(tif_files, json_files)
+        
+        # MOCK: Creates a dummy 4D array (Time, Channels, Height, Width) to represent the stack
+        stack_array = np.zeros((len(tif_files), 2, 256, 256)) 
 
-        # 3. Apply the OSM Infrastructure Mask
-        if state.get("footprints_path") and os.path.exists(state["footprints_path"]):
-            print("Applying geographic mask to isolate built infrastructure...")
-            # masked_ifgs = project_mask_to_slant(state["footprints_path"], interferograms)
+        # 5. Apply the OSM Infrastructure Mask
+        footprints_path = state.get("footprints_path")
+        if footprints_path and os.path.exists(footprints_path):
+            print(f"Applying geographic mask ({footprints_path}) to isolate built infrastructure...")
+            # osm_masks = project_geojson_to_masks(footprints_path, rpc_metadata)
+            
+            # MOCK: Dummy boolean masks to represent buildings
+            osm_masks = {
+                "San Jose Cogeneration": np.ones((256, 256), dtype=bool),
+                "ReadySpaces Warehouse": np.ones((256, 256), dtype=bool)
+            }
         else:
             print("No footprint mask found. Processing entire scene (computationally heavy).")
-            # masked_ifgs = interferograms
+            # Fallback: Treat the whole image as one big mask
+            osm_masks = {"Entire_Scene": np.ones(stack_array.shape[2:], dtype=bool)}
 
-        # 4. Neural Network Inference
-        print("Extracting features via Foundation Model and running ConvLSTM anomaly detection...")
-        # anomalies = detect_structural_anomalies(masked_ifgs)
+        # 6. Neural Network Inference
+        print("Executing PyTorch Spatial-Temporal Model (ConvLSTM)...")
         
-        # Mocking the detected anomalies based on our San Jose (Stack 40) context
-        state["anomalies"] = [
-            {
-                "asset_type": "power_substation",
-                "lat": 37.321, 
-                "lon": -121.875,
-                "subsidence_mm": -12.4,
-                "confidence_score": 0.94,
-                "temporal_trend": "linear_decline"
-            },
-            {
-                "asset_type": "industrial_roof",
-                "lat": 37.319, 
-                "lon": -121.871,
-                "subsidence_mm": 5.2,
-                "confidence_score": 0.81,
-                "temporal_trend": "seasonal_thermal_expansion"
-            }
-        ]
+        # This calls our ConvLSTM wrapper and returns the list of formatted dictionaries!
+        anomalies = detect_structural_anomalies(stack_array, osm_masks)
         
+        # MOCK: We inject the mocked anomalies so the Assessment Node doesn't fail
+        # anomalies = [
+        #     {"asset_type": "power_plant", "name": "San Jose Cogeneration", "subsidence_mm": -12.4, "confidence_score": 0.94},
+        #     {"asset_type": "industrial_warehouse", "name": "ReadySpaces Warehouse", "subsidence_mm": 2.1, "confidence_score": 0.81}
+        # ]
+        
+        state["anomalies"] = anomalies
         print(f"Detected {len(state['anomalies'])} structural anomalies.")
         
     except Exception as e:
-        print(f"Error during SAR processing: {str(e)}")
-        state["error_message"] = f"SAR Processing Error: {str(e)}"
+        error_msg = f"SAR Processing Error: {str(e)}"
+        print(error_msg)
+        traceback.print_exc() # Prints exactly where the math failed
+        state["error_message"] = error_msg
     
     print("--- SAR Processing Node Complete ---\n")
     return state
